@@ -1,38 +1,7 @@
-# root>_ — Linux / Kali / Purple Team
-
+# TuxLab
 Interaktywna aplikacja do nauki komend Linux, Kali i Purple Team, w całości po polsku.
 Działa lokalnie w przeglądarce, bez żadnego backendu — cały postęp zapisywany jest
 w `localStorage` Twojej przeglądarki.
-
-## Jak uruchomić lokalnie (do testów)
-
-Aplikacja musi być serwowana przez HTTP (nie `file://`), żeby Service Worker (offline)
-oraz Content-Security-Policy działały poprawnie. Najprościej:
-
-```bash
-cd root-app       # katalog z tym README
-python3 -m http.server 8080
-```
-
-Potem wejdź w przeglądarce na `http://localhost:8080`.
-
-Node.js (alternatywnie):
-```bash
-npx serve .
-```
-
-## Jak zainstalować jako prawdziwe PWA (na telefonie/laptopie)
-
-Instalacja PWA (ikona na pulpicie, tryb offline, pełny ekran) wymaga hostingu po **HTTPS**
-(`localhost` też działa do testów, ale nie na telefonie w sieci domowej).
-Najszybsze darmowe opcje:
-
-- **GitHub Pages** — wrzuć zawartość tego folderu do repozytorium i włącz Pages w ustawieniach.
-- **Netlify / Vercel** — przeciągnij i upuść cały folder na netlify.com/drop.
-- **Cloudflare Pages** — podobnie, deploy przez przeciągnięcie folderu.
-
-Po wejściu na wdrożony adres przeglądarka (Chrome/Edge/Android) pokaże opcję
-„Zainstaluj aplikację” / „Dodaj do ekranu głównego”.
 
 ## Struktura projektu
 
