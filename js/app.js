@@ -1,11 +1,12 @@
 'use strict';
 /* ============================================================
-   root>_ — nauka Linuksa / Kali / Purple Team
+   TuxLab — nauka Linuksa / Kali / Purple Team
    Cała logika aplikacji. Kod bez zewnętrznych zależności,
    dane trzymane wyłącznie w localStorage (żadnej sieci / API).
    ============================================================ */
 
-const STORAGE_KEY = 'rootapp_progress_v1';
+const STORAGE_KEY = 'tuxlab_progress_v2';
+const OLD_STORAGE_KEY = 'rootapp_progress_v1'; // migracja z poprzedniej wersji (root>_)
 const PASS_THRESHOLD = 0.7; // 70%
 
 /* ---------- Bezpieczne escapowanie tekstu (ochrona przed XSS z własnych danych) ---------- */
@@ -36,15 +37,22 @@ function buildFinalTests() {
 const FINALS = buildFinalTests();
 
 /* ---------- Stan / postęp (localStorage) ---------- */
+const DEFAULT_PROGRESS = () => ({ lessons: {}, quiz1: {}, quiz2: {}, quiz3: {}, xp: 0, streak: 0, lastVisit: null });
+
 function loadProgress() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { lessons: {}, quiz1: {}, quiz2: {}, bestScore: {}, xp: 0, streak: 0, lastVisit: null };
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Migracja z poprzedniej wersji aplikacji (root>_), jeśli istnieje.
+      const legacy = localStorage.getItem(OLD_STORAGE_KEY);
+      if (legacy) raw = legacy;
+    }
+    if (!raw) return DEFAULT_PROGRESS();
     const parsed = JSON.parse(raw);
-    return Object.assign({ lessons: {}, quiz1: {}, quiz2: {}, bestScore: {}, xp: 0, streak: 0, lastVisit: null }, parsed);
+    return Object.assign(DEFAULT_PROGRESS(), parsed);
   } catch (e) {
     console.warn('Nie udało się odczytać postępu, zaczynam od nowa.', e);
-    return { lessons: {}, quiz1: {}, quiz2: {}, bestScore: {}, xp: 0, streak: 0, lastVisit: null };
+    return DEFAULT_PROGRESS();
   }
 }
 function saveProgress() {
@@ -78,6 +86,71 @@ const state = {
     saveProgress();
   }
 })();
+
+/* ---------- Instalacja PWA ---------- */
+const installState = { deferredPrompt: null, dismissed: false, installed: false };
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installState.deferredPrompt = e;
+  renderInstallBanner();
+});
+window.addEventListener('appinstalled', () => {
+  installState.installed = true;
+  installState.deferredPrompt = null;
+  renderInstallBanner();
+  toast('Zainstalowano TuxLab. Miłej nauki!');
+});
+
+function renderInstallBanner() {
+  const el = document.getElementById('install-banner');
+  if (!el) return;
+  if (isStandalone() || installState.installed || installState.dismissed) { el.innerHTML = ''; return; }
+
+  if (installState.deferredPrompt) {
+    el.innerHTML = `
+      <div class="install-banner">
+        <span>📲 Zainstaluj TuxLab jako aplikację — działa offline i ma własną ikonę.</span>
+        <span class="install-banner-actions">
+          <button class="btn-primary btn-small" id="install-yes-btn">Zainstaluj</button>
+          <button class="link-btn" id="install-no-btn">Nie teraz</button>
+        </span>
+      </div>`;
+    document.getElementById('install-yes-btn').addEventListener('click', async () => {
+      const dp = installState.deferredPrompt;
+      if (!dp) return;
+      dp.prompt();
+      await dp.userChoice;
+      installState.deferredPrompt = null;
+      renderInstallBanner();
+    });
+    document.getElementById('install-no-btn').addEventListener('click', () => {
+      installState.dismissed = true;
+      renderInstallBanner();
+    });
+  } else if (isIOS()) {
+    el.innerHTML = `
+      <div class="install-banner">
+        <span>📲 Dodaj TuxLab do ekranu głównego: stuknij <strong>Udostępnij</strong> ⬆️, a potem <strong>„Dodaj do ekranu początkowego”</strong>.</span>
+        <span class="install-banner-actions">
+          <button class="link-btn" id="install-no-btn">Nie teraz</button>
+        </span>
+      </div>`;
+    document.getElementById('install-no-btn').addEventListener('click', () => {
+      installState.dismissed = true;
+      renderInstallBanner();
+    });
+  } else {
+    el.innerHTML = '';
+  }
+}
 
 /* ---------- Pomocnicze ---------- */
 const $app = document.getElementById('app');
@@ -116,10 +189,11 @@ function catProgressStats(cat) {
   const doneCmds = (p.lessons[cat.id] || []).length;
   const q1pass = !!(p.quiz1[cat.id] && p.quiz1[cat.id].passed);
   const q2pass = !!(p.quiz2[cat.id] && p.quiz2[cat.id].passed);
+  const q3pass = !!(p.quiz3[cat.id] && p.quiz3[cat.id].passed);
   const lessonDone = totalCmds > 0 && doneCmds >= totalCmds;
-  const parts = [lessonDone, q1pass, q2pass];
+  const parts = [lessonDone, q1pass, q2pass, q3pass];
   const doneParts = parts.filter(Boolean).length;
-  return { totalCmds, doneCmds, q1pass, q2pass, lessonDone, doneParts, totalParts: 3, complete: doneParts === 3 };
+  return { totalCmds, doneCmds, q1pass, q2pass, q3pass, lessonDone, doneParts, totalParts: 4, complete: doneParts === 4 };
 }
 
 function overallStats() {
@@ -132,7 +206,7 @@ function overallStats() {
 
 /* ---------- Routing (hash-based, proste SPA) ---------- */
 window.addEventListener('hashchange', route);
-window.addEventListener('DOMContentLoaded', () => { route(); registerSW(); });
+window.addEventListener('DOMContentLoaded', () => { route(); registerSW(); renderInstallBanner(); });
 
 function route() {
   const hash = location.hash.slice(1) || '/';
@@ -142,6 +216,7 @@ function route() {
   if (parts[0] === 'lesson' && parts[1]) return renderLesson(parts[1]);
   if (parts[0] === 'quiz1' && parts[1]) return renderQuiz(parts[1], 'quiz1');
   if (parts[0] === 'quiz2' && parts[1]) return renderQuiz(parts[1], 'quiz2');
+  if (parts[0] === 'quiz3' && parts[1]) return renderQuiz(parts[1], 'quiz3');
   if (parts[0] === 'final' && parts[1]) return renderFinal(parts[1]);
   return renderHome();
 }
@@ -166,8 +241,9 @@ function renderHome() {
             <span class="cat-subtitle">${esc(cat.subtitle)}</span>
             <span class="cat-progress" id="prog-${cat.id}">
               <span class="mini-pip ${s.lessonDone ? 'on' : ''}" title="Lekcja">L</span>
-              <span class="mini-pip ${s.q1pass ? 'on' : ''}" title="Quiz ABCD">Q1</span>
-              <span class="mini-pip ${s.q2pass ? 'on' : ''}" title="Quiz — wpisz komendę">Q2</span>
+              <span class="mini-pip ${s.q1pass ? 'on' : ''}" title="Test ABCD">Q1</span>
+              <span class="mini-pip ${s.q2pass ? 'on' : ''}" title="Test — wpisz komendę (z podpowiedzią)">Q2</span>
+              <span class="mini-pip ${s.q3pass ? 'on' : ''}" title="Test — wpisz wszystko (bez podpowiedzi)">Q3</span>
             </span>
           </span>
           <span class="cat-arrow" aria-hidden="true">›</span>
@@ -180,9 +256,9 @@ function renderHome() {
   $app.innerHTML = `
     <header class="hero">
       <div class="hero-top">
-        <p class="eyebrow">root@purpleteam:~$</p>
-        <h1 class="hero-title">Linux <span class="accent-cyan">/</span> Kali <span class="accent-purple">/</span> Purple&nbsp;Team</h1>
-        <p class="hero-sub">Praktyczna nauka komend do rozmów rekrutacyjnych i codziennej pracy w bezpieczeństwie ofensywnym.</p>
+        <p class="eyebrow">root@tuxlab:~$</p>
+        <h1 class="hero-title">Tux<span class="accent-cyan">Lab</span></h1>
+        <p class="hero-sub">Praktyczna nauka Linuksa, Kali i Purple Teamu — komendy do rozmów rekrutacyjnych i codziennej pracy w bezpieczeństwie ofensywnym.</p>
       </div>
       <div class="hero-stats" role="group" aria-label="Twój postęp">
         <div class="stat-box">
@@ -303,7 +379,12 @@ function renderLesson(catId) {
         <button class="quiz-cta ${s.q2pass ? 'is-complete' : ''}" data-nav="#/quiz2/${cat.id}">
           <span class="final-icon" aria-hidden="true">⌨️</span>
           <span>Wpisz komendę ${s.q2pass ? '<span class="badge badge-done">✓ zaliczony</span>' : ''}</span>
-          <span class="final-sub">${cat.quiz2.length} pytań • wpisujesz odpowiedź sam(a)</span>
+          <span class="final-sub">${cat.quiz2.length} pytań • z podpowiedzią</span>
+        </button>
+        <button class="quiz-cta ${s.q3pass ? 'is-complete' : ''}" data-nav="#/quiz3/${cat.id}">
+          <span class="final-icon" aria-hidden="true">🧠</span>
+          <span>Wpisz wszystko sam(a) ${s.q3pass ? '<span class="badge badge-done">✓ zaliczony</span>' : ''}</span>
+          <span class="final-sub">${cat.quiz3.length} pytań • bez podpowiedzi</span>
         </button>
       </div>
     </div>
@@ -333,8 +414,9 @@ function renderQuiz(catId, quizType) {
   const cat = CATEGORIES.find(c => c.id === catId);
   if (!cat) return renderHome();
   const questions = cat[quizType];
+  const typeLabel = { quiz1: 'Test ABCD', quiz2: 'Wpisz komendę (z podpowiedzią)', quiz3: 'Wpisz wszystko (bez podpowiedzi)' }[quizType] || '';
   startQuizSession({
-    id: cat.id, title: cat.title, questions, quizType,
+    id: cat.id, title: `${cat.title} — ${typeLabel}`, questions, quizType,
     backHash: `#/lesson/${cat.id}`,
     resultKey: quizType, storageId: cat.id
   });
@@ -522,6 +604,29 @@ function playMicroSuccess(el) {
   setTimeout(() => el.classList.remove('pulse-success'), 500);
 }
 
+function computeNextStep(s) {
+  if (s.storageId === 'final-1') {
+    const f2pass = !!(state.progress.quiz1['final-2'] && state.progress.quiz1['final-2'].passed);
+    return f2pass ? { hash: '#/', label: 'Wróć na stronę główną' } : { hash: '#/final/final-2', label: 'Przejdź do Testu końcowego II →' };
+  }
+  if (s.storageId === 'final-2') {
+    return { hash: '#/', label: 'Wróć na stronę główną' };
+  }
+  const catId = s.storageId;
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return { hash: '#/', label: 'Wróć na stronę główną' };
+  if (s.quizType === 'quiz1') return { hash: `#/quiz2/${catId}`, label: 'Przejdź do testu: wpisz komendę →' };
+  if (s.quizType === 'quiz2') return { hash: `#/quiz3/${catId}`, label: 'Przejdź do testu: wpisz wszystko →' };
+  if (s.quizType === 'quiz3') {
+    const idx = CATEGORIES.findIndex(c => c.id === catId);
+    const next = CATEGORIES[idx + 1];
+    return next
+      ? { hash: `#/lesson/${next.id}`, label: `Kolejna kategoria: ${next.title} →` }
+      : { hash: '#/', label: 'Wszystkie kategorie ukończone — zobacz testy końcowe' };
+  }
+  return null;
+}
+
 function finishQuiz() {
   const s = state.quizSession;
   const total = s.questions.length;
@@ -529,7 +634,7 @@ function finishQuiz() {
   const passed = scorePct >= PASS_THRESHOLD;
 
   const p = state.progress;
-  const bucket = s.resultKey === 'quiz2' ? p.quiz2 : p.quiz1;
+  const bucket = p[s.resultKey] || p.quiz1;
   const prevBest = (bucket[s.storageId] && bucket[s.storageId].bestScore) || 0;
   bucket[s.storageId] = {
     passed: passed || (bucket[s.storageId] && bucket[s.storageId].passed) || false,
@@ -541,6 +646,8 @@ function finishQuiz() {
   saveProgress();
 
   const pct = Math.round(scorePct * 100);
+  const nextStep = passed ? computeNextStep(s) : null;
+
   $app.innerHTML = `
     <div class="result-screen ${passed ? 'result-pass' : 'result-fail'}">
       <div class="result-emblem" aria-hidden="true">${passed ? '🏆' : '💤'}</div>
@@ -548,13 +655,15 @@ function finishQuiz() {
       <p class="result-score">${s.correct} / ${total} poprawnych odpowiedzi (${pct}%)</p>
       <p class="result-threshold">Próg zaliczenia: ${Math.round(PASS_THRESHOLD * 100)}%</p>
       <div class="result-actions">
-        <button class="btn-primary" id="retry-btn">Spróbuj ponownie</button>
+        ${nextStep ? `<button class="btn-primary" id="next-step-btn">${esc(nextStep.label)}</button>` : ''}
+        <button class="${nextStep ? 'btn-secondary' : 'btn-primary'}" id="retry-btn">Spróbuj ponownie</button>
         <button class="btn-secondary" id="back-btn">${s.backHash === '#/' ? 'Wróć do listy kategorii' : 'Wróć do lekcji'}</button>
       </div>
     </div>
   `;
   announce(passed ? `Test zaliczony, wynik ${pct} procent.` : `Test niezaliczony, wynik ${pct} procent, spróbuj ponownie.`);
 
+  if (nextStep) document.getElementById('next-step-btn').addEventListener('click', () => nav(nextStep.hash));
   document.getElementById('retry-btn').addEventListener('click', () => startQuizSession(s));
   document.getElementById('back-btn').addEventListener('click', () => nav(s.backHash));
 
