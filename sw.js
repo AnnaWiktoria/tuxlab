@@ -1,7 +1,7 @@
 /* Prosty service worker: cache-first dla zasobów statycznych, umożliwia pracę offline.
    Aplikacja nie komunikuje się z żadnym serwerem — wszystkie dane żyją w localStorage klienta. */
 
-const CACHE_NAME = 'root-app-cache-v1';
+const CACHE_NAME = 'tuxlab-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,9 @@ const ASSETS = [
   './js/data.js',
   './js/app.js',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './icons/icon-maskable-192.png',
+  './icons/icon-maskable-512.png'
 ];
 
 self.addEventListener('install', (event) => {
