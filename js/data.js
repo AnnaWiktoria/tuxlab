@@ -740,3 +740,76 @@ const CATEGORIES = [
   ]
 }
 ]; // KONIEC CATEGORIES
+
+/* ============================================================
+   AUTO-UZUPEŁNIANIE TESTÓW
+   Cel: (1) każda kategoria testuje WSZYSTKIE komendy z lekcji,
+        nie tylko podzbiór; (2) dodatkowy, trzeci test — bez
+        podpowiedzi, trzeba wpisać wszystko samodzielnie.
+   Ręcznie napisane pytania (powyżej) zostają jako "rdzeń" —
+   dopisujemy tylko brakujące pozycje, żeby uniknąć dziur
+   w pokryciu materiału i nadmiarowych duplikatów.
+   ============================================================ */
+
+function _firstLine(example) {
+  return String(example).split('\n')[0].trim();
+}
+function _firstToken(cmdLike) {
+  const line = _firstLine(cmdLike);
+  const m = line.match(/^\S+/);
+  return (m ? m[0] : line).toLowerCase();
+}
+function _shuffleDeterministic(arr, seed) {
+  // Prosty, deterministyczny "tasowany" porządek (bez Math.random) —
+  // ten sam wynik przy każdym uruchomieniu aplikacji.
+  const out = arr.slice();
+  let s = seed + 1;
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s / 233280) * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function _autoMcq(cat, item, idx) {
+  const correctCmd = _firstLine(item.example);
+  const otherCmds = cat.lesson
+    .filter((l, i) => i !== idx)
+    .map(l => _firstLine(l.example))
+    .filter(c => c && c !== correctCmd);
+  const distractors = _shuffleDeterministic(otherCmds, idx).slice(0, 3);
+  while (distractors.length < 3) distractors.push(correctCmd + ' --pomocnicza-opcja');
+  const options = _shuffleDeterministic([correctCmd, ...distractors], idx + 7);
+  return {
+    q: `Która komenda pozwala: ${item.pl.toLowerCase()}?`,
+    options,
+    correct: options.indexOf(correctCmd),
+    exp: item.desc,
+    auto: true
+  };
+}
+
+function _autoType(item, withHint) {
+  return {
+    q: `Wpisz komendę, która pozwala: ${item.pl.toLowerCase()}.`,
+    answers: [_firstLine(item.example)],
+    hint: withHint ? (item.cmd + ' — ' + item.en) : undefined,
+    exp: item.desc,
+    auto: true
+  };
+}
+
+CATEGORIES.forEach((cat) => {
+  const q1Covered = new Set(cat.quiz1.map(q => _firstLine(q.options[q.correct]).toLowerCase()));
+  const q2Covered = new Set(cat.quiz2.map(q => _firstLine(q.answers[0]).toLowerCase()));
+
+  cat.lesson.forEach((item, idx) => {
+    const key = _firstLine(item.example).toLowerCase();
+    if (!q1Covered.has(key)) { cat.quiz1.push(_autoMcq(cat, item, idx)); q1Covered.add(key); }
+    if (!q2Covered.has(key)) { cat.quiz2.push(_autoType(item, true)); q2Covered.add(key); }
+  });
+
+  // Test 3: PEŁNE pokrycie, bez podpowiedzi — trzeba wpisać wszystko samodzielnie.
+  cat.quiz3 = cat.lesson.map(item => _autoType(item, false));
+});
