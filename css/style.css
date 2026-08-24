@@ -201,7 +201,7 @@ code, pre, .mono { font-family: var(--font-mono); }
 }
 
 .cat-quiz-cta { margin-top: 20px; }
-.quiz-cta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.quiz-cta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
 /* ---------- Quiz ---------- */
 .quiz-header { margin-bottom: 18px; }
@@ -261,11 +261,21 @@ code, pre, .mono { font-family: var(--font-mono); }
   font: inherit; padding: 11px 20px; border-radius: var(--radius-m); cursor: pointer;
   font-weight: 600; border: 1px solid transparent;
 }
+.btn-small { padding: 7px 14px; font-size: 0.85rem; flex-shrink: 0; }
 .btn-primary { background: linear-gradient(90deg, var(--cyan), var(--purple)); color: #06121a; }
 .btn-primary:hover { filter: brightness(1.08); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background: var(--bg-1); color: var(--text-hi); border-color: var(--border); }
 .btn-secondary:hover { border-color: var(--cyan); }
+
+/* ---------- Baner instalacji PWA ---------- */
+#install-banner-root:empty, #install-banner:empty { display: none; }
+.install-banner {
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  background: var(--bg-2); border-bottom: 1px solid var(--border-soft);
+  padding: 10px 18px; font-size: 0.88rem; color: var(--text-mid);
+}
+.install-banner-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 .pulse-success { animation: pulseSuccess 0.5s ease; }
 @keyframes pulseSuccess { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5);} 100% { box-shadow: 0 0 0 14px rgba(74,222,128,0);} }
@@ -305,6 +315,7 @@ code, pre, .mono { font-family: var(--font-mono); }
   .hero-stats { grid-template-columns: 1fr 1fr 1fr; }
   .finals-grid, .quiz-cta-grid { grid-template-columns: 1fr; }
   .cat-card-btn { align-items: flex-start; }
+  .install-banner { flex-direction: column; align-items: flex-start; }
 }
 
 /* ---------- prefers-reduced-motion ---------- */
