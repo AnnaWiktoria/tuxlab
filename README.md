@@ -1,5 +1,5 @@
-# TuxLab
-Interaktywna aplikacja do nauki komend Linux, Kali i Purple Team, w całości po polsku.
+# TuxLab 🐧
+Interaktywna aplikacja do nauki komend Linuxa w całości po polsku.
 Działa lokalnie w przeglądarce, bez żadnego backendu — cały postęp zapisywany jest
 w `localStorage` Twojej przeglądarki.
 
